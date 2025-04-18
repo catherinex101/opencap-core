@@ -48,9 +48,6 @@ def getStatusEmails():
     
     return emailInfo
 
-def getErrorLogBool():
-    return config('ERROR_LOG', default=False, cast=bool)
-
 def getASInstance():
     try:
         # Check if the ECS_CONTAINER_METADATA_FILE environment variable exists

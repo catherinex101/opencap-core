@@ -9,27 +9,20 @@ import logging
 import glob
 from datetime import datetime, timedelta
 import numpy as np
-from utilsAPI import getAPIURL, getWorkerType, getErrorLogBool, getASInstance, unprotect_current_instance, get_number_of_pending_trials
+from utilsAPI import getAPIURL, getWorkerType, getASInstance, unprotect_current_instance, get_number_of_pending_trials
 from utilsAuth import getToken
 from utils import (getDataDirectory, checkTime, checkResourceUsage,
                   sendStatusEmail, checkForTrialsWithStatus,
                   getCommitHash, getHostname, postLocalClientInfo,
-                  postProcessedDuration, makeRequestWithRetry,
-                  writeToErrorLog)
+                  postProcessedDuration)
 
-logging.basicConfig(format="[%(asctime)s] [%(levelname)s] %(message)s",
-                    level=logging.INFO,
-                    datefmt='%Y-%m-%d %H:%M:%S',
-                    force=True)
+logging.basicConfig(level=logging.INFO)
 
 API_TOKEN = getToken()
 API_URL = getAPIURL()
 workerType = getWorkerType()
 autoScalingInstance = getASInstance()
 logging.info(f"AUTOSCALING TEST INSTANCE: {autoScalingInstance}")
-
-ERROR_LOG = getErrorLogBool()
-error_log_path = "/data/error_log.json"
 
 # if true, will delete entire data directory when finished with a trial
 isDocker = True
@@ -82,8 +75,7 @@ while True:
         continue
 
     if r.status_code == 404:
-        logging.info(f"...pulling {workerType} trials from {API_URL} "
-                     f"using commit {getCommitHash()}")
+        logging.info("...pulling " + workerType + " trials from " + API_URL)
         time.sleep(1)
         
         # When using autoscaling, we will remove the instance scale-in protection if it hasn't
@@ -128,20 +120,8 @@ while True:
         error_msg['error_msg'] = 'No videos uploaded. Ensure phones are connected and you have stable internet connection.'
         error_msg['error_msg_dev'] = 'No videos uploaded.'
 
-        try: 
-            r = makeRequestWithRetry('PATCH',
-                                    trial_url,
-                                    data={"status": "error", "meta": json.dumps(error_msg)},
-                                    headers = {"Authorization": "Token {}".format(API_TOKEN)})
-            
-        except Exception as e:
-            traceback.print_exc()
-
-            if ERROR_LOG:
-                stack = traceback.format_exc()
-                writeToErrorLog(error_log_path, trial["session"], trial["id"],
-                                e, stack)
-        
+        r = requests.patch(trial_url, data={"status": "error", "meta": json.dumps(error_msg)},
+                         headers = {"Authorization": "Token {}".format(API_TOKEN)})
         continue
 
     # The following is now done in main, to allow reprocessing trials with missing videos
@@ -169,33 +149,15 @@ while True:
 
         # note a result needs to be posted for the API to know we finished, but we are posting them 
         # automatically thru procesTrial now
-        r = makeRequestWithRetry('PATCH',
-                                 trial_url,
-                                 data={"status": "done"},
-                                 headers = {"Authorization": "Token {}".format(API_TOKEN)})
-
+        r = requests.patch(trial_url, data={"status": "done"},
+                         headers = {"Authorization": "Token {}".format(API_TOKEN)})
         logging.info('0.5s pause if need to restart.')
         time.sleep(0.5)
 
     except Exception as e:
-        try:
-            r = makeRequestWithRetry('PATCH',
-                                     trial_url, data={"status": "error"},
-                                     headers = {"Authorization": "Token {}".format(API_TOKEN)})
-            traceback.print_exc()
-
-            if ERROR_LOG:
-                stack = traceback.format_exc()
-                writeToErrorLog(error_log_path, trial["session"], trial["id"],
-                                e, stack)
-
-        except:
-            traceback.print_exc()
-
-            if ERROR_LOG:
-                stack = traceback.format_exc()
-                writeToErrorLog(error_log_path, trial["session"], trial["id"],
-                                e, stack)
+        r = requests.patch(trial_url, data={"status": "error"},
+                         headers = {"Authorization": "Token {}".format(API_TOKEN)})
+        traceback.print_exc()
 
         # Antoine: Removing this, it is too often causing the machines to stop. Not because
         # the machines are failing, but because for instance the video is very long with a lot
@@ -210,16 +172,8 @@ while True:
     
     finally:
         # End process duration timer and post duration to database
-        try:
-            process_end_time = datetime.now()
-            postProcessedDuration(trial_url, process_end_time - process_start_time)
-        except Exception as e:
-            traceback.print_exc()
-
-            if ERROR_LOG:
-                stack = traceback.format_exc()
-                writeToErrorLog(error_log_path, trial["session"], trial["id"],
-                                e, stack)
+        process_end_time = datetime.now()
+        postProcessedDuration(trial_url, process_end_time - process_start_time)
 
     justProcessed = True
     

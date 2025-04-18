@@ -92,7 +92,7 @@ while True:
         time.sleep(0.1)
         continue
 
-    logging.info("Processing openpose...")
+    logging.info("Processing...")
 
     if os.path.isdir(output_dir):
         shutil.rmtree(output_dir)
@@ -101,18 +101,13 @@ while True:
     horizontal = getVideoOrientation(video_path)
     cmd_hr = getResolutionCommand(resolutionPoseDetection, horizontal)
 
-    try: 
-        check_cuda_device()
-        command = "/openpose/build/examples/openpose/openpose.bin\
-            --video {video_path}\
-            --display 0\
-            --write_json {output_dir}\
-            --render_pose 0{cmd_hr}".format(video_path=video_path, output_dir=output_dir, cmd_hr=cmd_hr)
-        os.system(command)
+    check_cuda_device()
+    command = "/openpose/build/examples/openpose/openpose.bin\
+        --video {video_path}\
+        --display 0\
+        --write_json {output_dir}\
+        --render_pose 0{cmd_hr}".format(video_path=video_path, output_dir=output_dir, cmd_hr=cmd_hr)
+    os.system(command)
 
-        logging.info("openpose: Done. Cleaning up")
-        os.remove(video_path)
-
-    except:
-        logging.info("openpose: Pose detection failed.")
-        os.remove(video_path)
+    logging.info("Done. Cleaning up")
+    os.remove(video_path)
